@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mausam. | A Little Weather Journal</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="script.js" defer></script>
+</head>
+<body>
+
+    <main class="page">
+
+        <header class="header">
+            <a href="#" class="logo">mausam<span>.</span></a>
+            <p class="header-note">a little weather journal ☀</p>
+        </header>
+
+        <section class="intro">
+            <p class="small-label">LET'S CHECK OUTSIDE</p>
+            <h1>What's the sky<br>like today<span>?</span></h1>
+            <p class="intro-text">
+                A tiny corner of the internet to check the weather.
+            </p>
+        </section>
+
+        <form id="weatherForm" class="search-form">
+            <label for="cityInput" class="visually-hidden">
+                Enter a city
+            </label>
+            <input
+                type="text"
+                id="cityInput"
+                placeholder="Type a city... e.g. Indore"
+                required
+            >
+            <button type="submit" id="searchButton">Let's see ↗</button>
+        </form>
+
+        <button type="button" id="locationButton" class="location-btn">
+            ◎ Find my location instead
+        </button>
+
+        <p id="message" class="message" role="status">
+            Pick a city and let's look at its sky.
+        </p>
+
+        <section id="weatherInfo" hidden>
+
+            <article class="weather-paper">
+                <div class="paper-top">
+                    <div>
+                        <p class="small-label">TODAY'S WEATHER</p>
+                        <h2 id="cityName">Indore, India</h2>
+                        <p id="date" class="date"></p>
+                    </div>
+                    <span id="weatherIcon" class="weather-icon">☀️</span>
+                </div>
+
+                <div class="temperature-area">
+                    <p id="temperature" class="temperature">--°</p>
+                    <div>
+                        <p id="condition" class="condition">Sunny</p>
+                        <p id="highLow" class="high-low">H: --° · L: --°</p>
+                    </div>
+                </div>
+
+                <div class="little-note">
+                    <span class="note-title">✎ Today's little note</span>
+                    <p id="advice">A new day, a new sky.</p>
+                </div>
+
+                <div class="paper-footer">
+                    <span>Just look up ☁</span>
+
+                    <div class="unit-switch">
+                        <button type="button" id="celsius"
+                                class="unit active">°C</button>
+                        <button type="button" id="fahrenheit"
+                                class="unit">°F</button>
+                    </div>
+                </div>
+            </article>
+
+            <section class="forecast-section">
+                <div class="section-title">
+                    <h2>A little look ahead</h2>
+                    <span>next few hours →</span>
+                </div>
+
+                <div id="forecast" class="forecast"></div>
+            </section>
+
+            <section class="details-section">
+                <div class="section-title">
+                    <h2>Weather bits & pieces</h2>
+                    <span>the little details</span>
+                </div>
+
+                <div class="details-grid">
+                    <article class="detail">
+                        <span>💧</span>
+                        <p>Humidity</p>
+                        <strong id="humidity">--%</strong>
+                    </article>
+
+                    <article class="detail">
+                        <span>🌬️</span>
+                        <p>Wind</p>
+                        <strong id="wind">-- km/h</strong>
+                    </article>
+
+                    <article class="detail">
+                        <span>🌡️</span>
+                        <p>Feels like</p>
+                        <strong id="feelsLike">--°</strong>
+                    </article>
+
+                    <article class="detail">
+                        <span>☔</span>
+                        <p>Chance of rain</p>
+                        <strong id="rain">--%</strong>
+                    </article>
+                </div>
+            </section>
+
+            <p id="updated" class="updated"></p>
+        </section>
+
+        <footer class="footer">
+            <div class="footer-doodle">☁ ☀ ☁</div>
+            <p>Made with a little sunshine & JavaScript.</p>
+            <p>
+                Weather data by
+                <a href="https://open-meteo.com/"
+                   target="_blank" rel="noopener noreferrer">
+                    Open-Meteo
+                </a>
+            </p>
+        </footer>
+
+    </main>
+
+</body>
+</html>
