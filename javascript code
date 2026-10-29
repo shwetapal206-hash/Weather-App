@@ -1,0 +1,426 @@
+const $ = id => document.getElementById(id);
+
+const form = $("weatherForm");
+const cityInput = $("cityInput");
+const searchButton = $("searchButton");
+const locationButton = $("locationButton");
+const weatherInfo = $("weatherInfo");
+const message = $("message");
+
+let weatherData = null;
+let currentPlace = "";
+let unit = "C";
+
+function describeWeather(code) {
+    if (code === 0) return ["Clear sky", "☀️"];
+    if (code === 1) return ["Mostly clear", "🌤️"];
+    if (code === 2) return ["A little cloudy", "⛅"];
+    if (code === 3) return ["Cloudy", "☁️"];
+
+    if ([45, 48].includes(code)) {
+        return ["A little foggy", "🌫️"];
+    }
+
+    if ([51, 53, 55, 56, 57].includes(code)) {
+        return ["Drizzly", "🌦️"];
+    }
+
+    if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) {
+        return ["Rainy", "🌧️"];
+    }
+
+    if ([71, 73, 75, 77, 85, 86].includes(code)) {
+        return ["Snowy", "❄️"];
+    }
+
+    if ([95, 96, 99].includes(code)) {
+        return ["Stormy", "⛈️"];
+    }
+
+    return ["Weather is changing", "🌤️"];
+}
+
+function temperature(value) {
+    const result = unit === "F"
+        ? value * 9 / 5 + 32
+        : value;
+
+    return `${Math.round(result)}°${unit}`;
+}
+
+function timeLabel(value) {
+    // API returns local time in YYYY-MM-DDTHH:mm format.
+    const time = value.split("T")[1];
+
+    if (!time) return value;
+
+    let [hour, minute] = time.split(":").map(Number);
+    const suffix = hour >= 12 ? "PM" : "AM";
+
+    hour = hour % 12 || 12;
+
+    return `${hour}:${String(minute).padStart(2, "0")} ${suffix}`;
+}
+
+function dateLabel(value) {
+    const [year, month, day] = value.split("T")[0].split("-").map(Number);
+
+    return new Date(year, month - 1, day).toLocaleDateString(
+        "en-IN",
+        {
+            weekday: "long",
+            day: "numeric",
+            month: "long"
+        }
+    );
+}
+
+function getAdvice(code, temp, rain, uv) {
+    if ([95, 96, 99].includes(code)) {
+        return "A stormy sort of day. Keep an eye on local weather alerts before heading out.";
+    }
+
+    if ([51, 53, 55, 56, 57, 61, 63, 65,
+         66, 67, 80, 81, 82].includes(code)) {
+        return "Looks like a rainy day. An umbrella might be your best companion.";
+    }
+
+    if (rain >= 50) {
+        return "Rain might be on the way. Carrying an umbrella could be a good idea.";
+    }
+
+    if (temp >= 35) {
+        return "Quite a warm day! Keep drinking water and find some shade when you need it.";
+    }
+
+    if (temp <= 10) {
+        return "A chilly one today. An extra layer might come in handy.";
+    }
+
+    if (uv >= 6) {
+        return "The sun is strong today. Consider sunscreen, a hat and some shade.";
+    }
+
+    if (code === 0 || code === 1) {
+        return "A lovely bit of sunshine. Maybe make some time for the outdoors!";
+    }
+
+    return "A new day, a new sky. Check the forecast and make the most of it.";
+}
+
+async function getCity(city) {
+    const url =
+        "https://geocoding-api.open-meteo.com/v1/search?name=" +
+        encodeURIComponent(city) +
+        "&count=10&language=en&format=json";
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+        throw new Error("Couldn't search for that city.");
+    }
+
+    const data = await response.json();
+
+    if (!data.results || data.results.length === 0) {
+        throw new Error("City not found. Try checking the spelling.");
+    }
+
+    return data.results.find(
+        item => item.name.toLowerCase() === city.toLowerCase()
+    ) || data.results[0];
+}
+
+async function getWeather(latitude, longitude) {
+    const url =
+        "https://api.open-meteo.com/v1/forecast" +
+        `?latitude=${latitude}&longitude=${longitude}` +
+        "&current=temperature_2m,relative_humidity_2m," +
+        "apparent_temperature,precipitation_probability," +
+        "weather_code,wind_speed_10m" +
+        "&hourly=temperature_2m,weather_code,precipitation_probability" +
+        "&daily=temperature_2m_max,temperature_2m_min" +
+        "&forecast_days=1&timezone=auto";
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+        throw new Error("Weather data is unavailable right now.");
+    }
+
+    return response.json();
+}
+
+function showForecast(data) {
+    const forecast = $("forecast");
+    forecast.replaceChildren();
+
+    const hours = data.hourly;
+    let start = hours.time.findIndex(
+        time => time >= data.current.time
+    );
+
+    if (start < 0) start = 0;
+
+    for (let i = start; i < Math.min(start + 6, hours.time.length); i++) {
+        const [description, icon] = describeWeather(
+            hours.weather_code[i]
+        );
+
+        const item = document.createElement("article");
+        item.className = "forecast-item";
+
+        const time = document.createElement("div");
+        time.className = "forecast-time";
+        time.textContent = i === start ? "Now" : timeLabel(hours.time[i]);
+
+        const weatherIcon = document.createElement("div");
+        weatherIcon.className = "forecast-icon";
+        weatherIcon.textContent = icon;
+        weatherIcon.title = description;
+
+        const temp = document.createElement("p");
+        temp.className = "forecast-temp";
+        temp.textContent = temperature(hours.temperature_2m[i]);
+
+        const rain = document.createElement("div");
+        rain.className = "forecast-rain";
+        rain.textContent = `☔ ${hours.precipitation_probability[i] ?? 0}%`;
+
+        item.append(time, weatherIcon, temp, rain);
+        forecast.appendChild(item);
+    }
+}
+
+function showWeather(place, data) {
+    weatherData = data;
+    currentPlace = place.name;
+
+    const current = data.current;
+    const daily = data.daily;
+
+    const [description, icon] = describeWeather(current.weather_code);
+
+    $("cityName").textContent = place.name;
+    $("date").textContent = dateLabel(current.time);
+    $("weatherIcon").textContent = icon;
+    $("condition").textContent = description;
+    $("temperature").textContent = temperature(current.temperature_2m);
+
+    $("highLow").textContent =
+        `H: ${temperature(daily.temperature_2m_max[0])} · ` +
+        `L: ${temperature(daily.temperature_2m_min[0])}`;
+
+    $("humidity").textContent = `${current.relative_humidity_2m}%`;
+    $("wind").textContent = `${Math.round(current.wind_speed_10m)} km/h`;
+    $("feelsLike").textContent = temperature(current.apparent_temperature);
+
+    const hourIndex = Math.max(
+        0,
+        data.hourly.time.findIndex(time => time >= current.time)
+    );
+
+    const rainChance =
+        data.hourly.precipitation_probability[hourIndex] ??
+        current.precipitation_probability ??
+        0;
+
+    $("rain").textContent = `${rainChance}%`;
+
+    $("advice").textContent = getAdvice(
+        current.weather_code,
+        current.temperature_2m,
+        rainChance,
+        0
+    );
+
+    $("updated").textContent =
+        `Last weather reading: ${timeLabel(current.time)} · ` +
+        "Times shown are local to the selected place.";
+
+    showForecast(data);
+
+    weatherInfo.hidden = false;
+    message.textContent = "There we go! Here's your little weather update.";
+}
+
+async function searchAndShow(city) {
+    searchButton.disabled = true;
+    locationButton.disabled = true;
+    weatherInfo.hidden = true;
+    message.textContent = "Looking up the sky...";
+
+    try {
+        const result = await getCity(city);
+
+        const placeName = [
+            result.name,
+            result.admin1,
+            result.country
+        ].filter((value, index, array) =>
+            value && array.indexOf(value) === index
+        ).join(", ");
+
+        const data = await getWeather(
+            result.latitude,
+            result.longitude
+        );
+
+        showWeather({ name: placeName }, data);
+        saveCity(result.name);
+    } catch (error) {
+        message.textContent = error.message || "Something went wrong.";
+    } finally {
+        searchButton.disabled = false;
+        locationButton.disabled = false;
+    }
+}
+
+form.addEventListener("submit", event => {
+    event.preventDefault();
+
+    const city = cityInput.value.trim();
+
+    if (!city) {
+        message.textContent = "Type a city name first.";
+        return;
+    }
+
+    searchAndShow(city);
+});
+
+// Change the temperature unit without requesting data again.
+function changeUnit(nextUnit) {
+    unit = nextUnit;
+
+    $("celsius").classList.toggle("active", unit === "C");
+    $("fahrenheit").classList.toggle("active", unit === "F");
+
+    if (weatherData) {
+        $("temperature").textContent =
+            temperature(weatherData.current.temperature_2m);
+
+        $("highLow").textContent =
+            `H: ${temperature(weatherData.daily.temperature_2m_max[0])} · ` +
+            `L: ${temperature(weatherData.daily.temperature_2m_min[0])}`;
+
+        $("feelsLike").textContent =
+            temperature(weatherData.current.apparent_temperature);
+
+        showForecast(weatherData);
+    }
+}
+
+$("celsius").addEventListener("click", () => changeUnit("C"));
+$("fahrenheit").addEventListener("click", () => changeUnit("F"));
+
+// Optional browser location feature.
+locationButton.addEventListener("click", () => {
+    if (!navigator.geolocation) {
+        message.textContent = "Your browser doesn't support location.";
+        return;
+    }
+
+    locationButton.disabled = true;
+    message.textContent = "Asking your browser for your location...";
+
+    navigator.geolocation.getCurrentPosition(
+        async position => {
+            try {
+                const data = await getWeather(
+                    position.coords.latitude,
+                    position.coords.longitude
+                );
+
+                showWeather({ name: "Your current location" }, data);
+            } catch (error) {
+                message.textContent = error.message;
+            } finally {
+                locationButton.disabled = false;
+            }
+        },
+        error => {
+            const errors = {
+                1: "Location permission was denied. You can search for a city instead.",
+                2: "Couldn't determine your location.",
+                3: "Location request timed out. Please try again."
+            };
+
+            message.textContent =
+                errors[error.code] || "Unable to access your location.";
+
+            locationButton.disabled = false;
+        },
+        { timeout: 10000, maximumAge: 300000 }
+    );
+});
+
+// Small recent-search feature using browser storage.
+function saveCity(city) {
+    try {
+        const oldCities = JSON.parse(
+            localStorage.getItem("mausamCities") || "[]"
+        );
+
+        const cities = [
+            city,
+            ...oldCities.filter(
+                item => item.toLowerCase() !== city.toLowerCase()
+            )
+        ].slice(0, 4);
+
+        localStorage.setItem("mausamCities", JSON.stringify(cities));
+        showRecentCities();
+    } catch {
+        // Searching still works if storage is unavailable.
+    }
+}
+
+function showRecentCities() {
+    let recent = document.getElementById("recentCities");
+
+    if (!recent) {
+        recent = document.createElement("select");
+        recent.id = "recentCities";
+        recent.setAttribute("aria-label", "Recent cities");
+
+        const label = document.createElement("label");
+        label.textContent = "A city you've checked before: ";
+        label.htmlFor = "recentCities";
+        label.className = "recent-label";
+
+        locationButton.insertAdjacentElement("afterend", label);
+        label.appendChild(recent);
+
+        recent.addEventListener("change", () => {
+            if (recent.value) {
+                cityInput.value = recent.value;
+                form.requestSubmit();
+            }
+        });
+    }
+
+    let cities = [];
+
+    try {
+        cities = JSON.parse(localStorage.getItem("mausamCities") || "[]");
+    } catch {
+        cities = [];
+    }
+
+    recent.replaceChildren();
+
+    const first = document.createElement("option");
+    first.value = "";
+    first.textContent = cities.length ? "Choose a city" : "No recent cities";
+    recent.appendChild(first);
+
+    cities.forEach(city => {
+        const option = document.createElement("option");
+        option.value = city;
+        option.textContent = city;
+        recent.appendChild(option);
+    });
+}
+
+showRecentCities();
